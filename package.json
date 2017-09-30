@@ -1,0 +1,16 @@
+{
+  "name": "hooker",
+  "version": "0.0.1",
+  "description": "An extendable discord webhook messenger based on redash-pubsub events",
+  "main": "src/app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "BDISTIN",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "github:devsnek/discord.js#refactor/message-sending",
+    "fs-nextra": "^0.3.0",
+    "redash-pubsub": "github:bdistin/redash-pubsub"
+  }
+}
