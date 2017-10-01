@@ -1,19 +1,20 @@
 const { Collection } = require('discord.js');
 const { Exchange } = require('redash-pubsub');
-const { outputJsonAtomic } = require('fs-nextra');
+const { writeJSONAtomic } = require('fs-nextra');
+const { resolve } = require('path');
 const Subscription = require('./Subscription');
 let config;
 try {
-	config = require('../../config.json');
+	config = require(resolve(process.cwd(), 'config.json'));
 } catch (err) {
 	config = {};
 }
 let subscriptions;
 try {
-	subscriptions = require('../../subs.json');
+	subscriptions = require(resolve(process.cwd(), 'subs.json'));
 } catch (err) {
 	subscriptions = [];
-	outputJsonAtomic('../../subs.json', subscriptions);
+	writeJSONAtomic(resolve(process.cwd(), 'subs.json'), subscriptions);
 }
 
 class Client {
@@ -27,7 +28,7 @@ class Client {
 
 	async _setup() {
 		for (const subscription of subscriptions) this.subscribe(subscription);
-		this.commandSubscription = await this.exchange.subscribe(id => id.match('^hooker.'));
+		this.commandSubscription = await this.exchange.subscribe(id => id.match('^hooker\\.'));
 		this.commandSubscription.on('data', ({ id: key, payload }) => {
 			const command = key.slice(7);
 			if (command in this) this[command](payload);
@@ -47,23 +48,23 @@ class Client {
 		this.subscriptions.delete(key);
 	}
 
-	createSubscription(payload) {
+	async createSubscription(payload) {
 		if (!payload.key || !payload.id || !payload.token) return;
 		subscriptions.push(payload);
-		this.sync();
+		await this.sync();
 		this.subscribe(payload);
 	}
 
-	removeSubscription(payload) {
+	async removeSubscription(payload) {
 		const index = subscriptions.findIndex(element => element.key === payload);
 		if (index === -1) return;
 		subscriptions.splice(index, 1);
-		this.sync();
+		await this.sync();
 		this.unsubscribe(payload);
 	}
 
 	sync() {
-		outputJsonAtomic('../../subs.json', subscriptions);
+		return writeJSONAtomic(resolve(process.cwd(), 'subs.json'), subscriptions);
 	}
 
 }
