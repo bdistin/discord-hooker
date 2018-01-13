@@ -13,7 +13,7 @@ let subscriptions;
 try {
 	subscriptions = require(resolve(process.cwd(), 'subs.json'));
 } catch (err) {
-	subscriptions = [];
+	subscriptions = {};
 	writeJSONAtomic(resolve(process.cwd(), 'subs.json'), subscriptions);
 }
 
@@ -27,7 +27,7 @@ class Client {
 	}
 
 	async _setup() {
-		for (const subscription of subscriptions) this.subscribe(subscription);
+		for (const key in subscriptions) this.subscribe(key, subscriptions[key]);
 		this.commandSubscription = await this.exchange.subscribe(id => id.match('^hooker\\.'));
 		this.commandSubscription.on('data', ({ id: key, payload }) => {
 			const command = key.slice(7);
@@ -36,9 +36,11 @@ class Client {
 		this.commandSubscription.on('error', console.error);
 	}
 
-	subscribe({ key, id, token, options = {} }) {
-		const sub = new Subscription(this, key, id, token, options);
-		this.subscriptions.set(key, sub);
+	subscribe(key, options = {}) {
+		const subscription = this.subscriptions.get(key);
+		if (subscription) return options.subs.map(sub => subscription.add(sub.id, sub.token));
+		const sub = new Subscription(this, key, options);
+		return this.subscriptions.set(key, sub);
 	}
 
 	unsubscribe(key) {
@@ -50,17 +52,21 @@ class Client {
 
 	async createSubscription(payload) {
 		if (!payload.key || !payload.id || !payload.token) return;
-		subscriptions.push(payload);
+		if (payload.key in subscriptions) subscriptions[payload.key].subs.push({ id: payload.id, token: payload.token });
+		else subscriptions[payload.key] = { username: payload.username, avatarURL: payload.avatarURL, subs: [{ id: payload.id, token: payload.token }] };
 		await this.sync();
-		this.subscribe(payload);
+		this.subscribe(payload.key, payload);
 	}
 
 	async removeSubscription(payload) {
-		const index = subscriptions.findIndex(element => element.key === payload);
+		const index = subscriptions[payload.key].subs.findIndex(element => element.id === payload.id);
 		if (index === -1) return;
-		subscriptions.splice(index, 1);
+		subscriptions[payload.key].subs.splice(index, 1);
+		if (subscriptions[payload.key].subs.length === 0) {
+			delete subscriptions[payload.key];
+			this.unsubscribe(payload);
+		}
 		await this.sync();
-		this.unsubscribe(payload);
 	}
 
 	sync() {
